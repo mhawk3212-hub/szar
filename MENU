@@ -1,16 +1,14 @@
 --[[ 
-    WURST-STYLE DRAWING UI LIBRARY 
+    WURST-STYLE DRAWING UI LIBRARY (FIXED)
     Strictly uses Drawing.new (No ScreenGui)
 ]]
 
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
 
 local Library = {
     Windows = {},
     Hidden = false,
-    Binding = nil -- Used for keybinding or text input capture
 }
 
 -- Utility: Check if mouse is over a square
@@ -22,7 +20,9 @@ end
 -- Utility: Create Drawing
 local function create(type, props)
     local d = Drawing.new(type)
-    for k, v in pairs(props) do d[k] = v end
+    for k, v in pairs(props) do 
+        d[k] = v 
+    end
     return d
 end
 
@@ -37,8 +37,9 @@ function Library:NewWindow(name)
     }
     
     -- Visuals
+    -- FIXED: Changed Thickness from 0 to 1 to prevent invalid property error
     Window.MainRect = create("Square", {
-        Visible = true, Filled = true, Thickness = 0, Color = Color3.fromRGB(40, 40, 40), Transparency = 0.8, ZIndex = 2
+        Visible = true, Filled = true, Thickness = 1, Color = Color3.fromRGB(40, 40, 40), Transparency = 0.8, ZIndex = 2
     })
     Window.Stroke = create("Square", {
         Visible = true, Filled = false, Thickness = 1, Color = Color3.fromRGB(0, 0, 0), Transparency = 1, ZIndex = 3
@@ -101,7 +102,7 @@ function Library:NewWindow(name)
         }
         
         Toggle.Label = create("Text", {Visible = false, Size = 14, Font = 2, ZIndex = 4})
-        Toggle.Bg = create("Square", {Visible = false, Filled = true, Color = Color3.fromRGB(30, 30, 30), Transparency = 0.6, ZIndex = 3})
+        Toggle.Bg = create("Square", {Visible = false, Filled = true, Thickness = 1, Color = Color3.fromRGB(30, 30, 30), Transparency = 0.6, ZIndex = 3})
 
         function Toggle:SetVisible(bool)
             Toggle.Label.Visible = bool
@@ -135,9 +136,9 @@ function Library:NewWindow(name)
             Height = 30, Dragging = false
         }
 
-        Slider.Bg = create("Square", {Visible = false, Filled = true, Color = Color3.fromRGB(30,30,30), Transparency = 0.6, ZIndex = 3})
-        Slider.Bar = create("Square", {Visible = false, Filled = true, Color = Color3.fromRGB(60,60,60), ZIndex = 4})
-        Slider.Fill = create("Square", {Visible = false, Filled = true, Color = Color3.fromRGB(50, 255, 50), ZIndex = 5})
+        Slider.Bg = create("Square", {Visible = false, Filled = true, Thickness = 1, Color = Color3.fromRGB(30,30,30), Transparency = 0.6, ZIndex = 3})
+        Slider.Bar = create("Square", {Visible = false, Filled = true, Thickness = 1, Color = Color3.fromRGB(60,60,60), ZIndex = 4})
+        Slider.Fill = create("Square", {Visible = false, Filled = true, Thickness = 1, Color = Color3.fromRGB(50, 255, 50), ZIndex = 5})
         Slider.Label = create("Text", {Visible = false, Size = 13, Font = 2, Color = Color3.new(1,1,1), ZIndex = 6})
         Slider.ValueLabel = create("Text", {Visible = false, Size = 13, Font = 2, Color = Color3.new(1,1,1), ZIndex = 6})
 
@@ -248,4 +249,26 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-return Library
+-- --- SETUP YOUR MENU BELOW ---
+
+-- 1. Create Window
+local Combat = Library:NewWindow("Combat")
+
+-- 2. Add Toggles
+Combat:AddToggle("Kill Aura", false, function(v)
+    print("Toggle is now", v)
+end)
+
+Combat:AddToggle("Auto Clicker", false, function(v)
+    print("Auto Clicker is", v)
+end)
+
+-- 3. Add Sliders
+Combat:AddSlider("Reach", 1, 10, 3, function(v)
+    print("Reach value:", v)
+end)
+
+local Visuals = Library:NewWindow("Visuals")
+Visuals:AddToggle("ESP", true, function(v)
+    print("ESP", v)
+end)
