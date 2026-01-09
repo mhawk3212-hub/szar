@@ -1,0 +1,251 @@
+--[[ 
+    WURST-STYLE DRAWING UI LIBRARY 
+    Strictly uses Drawing.new (No ScreenGui)
+]]
+
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+
+local Library = {
+    Windows = {},
+    Hidden = false,
+    Binding = nil -- Used for keybinding or text input capture
+}
+
+-- Utility: Check if mouse is over a square
+local function isMouseOver(pos, size)
+    local mouse = UserInputService:GetMouseLocation()
+    return mouse.X >= pos.X and mouse.X <= pos.X + size.X and mouse.Y >= pos.Y and mouse.Y <= pos.Y + size.Y
+end
+
+-- Utility: Create Drawing
+local function create(type, props)
+    local d = Drawing.new(type)
+    for k, v in pairs(props) do d[k] = v end
+    return d
+end
+
+function Library:NewWindow(name)
+    local Window = {
+        Pos = Vector2.new(100, 100 + (#Library.Windows * 50)), -- Auto offset new windows
+        Size = Vector2.new(180, 24), -- Header size
+        Expanded = true,
+        Elements = {},
+        Dragging = false,
+        DragOffset = Vector2.new(0, 0)
+    }
+    
+    -- Visuals
+    Window.MainRect = create("Square", {
+        Visible = true, Filled = true, Thickness = 0, Color = Color3.fromRGB(40, 40, 40), Transparency = 0.8, ZIndex = 2
+    })
+    Window.Stroke = create("Square", {
+        Visible = true, Filled = false, Thickness = 1, Color = Color3.fromRGB(0, 0, 0), Transparency = 1, ZIndex = 3
+    })
+    Window.Title = create("Text", {
+        Visible = true, Text = name, Size = 16, Center = false, Color = Color3.new(1, 1, 1), Font = 2, ZIndex = 4
+    })
+    Window.ExpandIcon = create("Text", {
+        Visible = true, Text = "-", Size = 18, Center = true, Color = Color3.new(1, 1, 1), Font = 2, ZIndex = 4
+    })
+
+    -- Update Rendering
+    function Window:Update()
+        if Library.Hidden then
+            Window.MainRect.Visible = false
+            Window.Stroke.Visible = false
+            Window.Title.Visible = false
+            Window.ExpandIcon.Visible = false
+            for _, elem in pairs(Window.Elements) do elem:SetVisible(false) end
+            return
+        end
+
+        -- Header Logic
+        Window.MainRect.Visible = true
+        Window.MainRect.Position = Window.Pos
+        Window.MainRect.Size = Window.Size
+        
+        Window.Stroke.Visible = true
+        Window.Stroke.Position = Window.Pos
+        Window.Stroke.Size = Window.Size
+
+        Window.Title.Visible = true
+        Window.Title.Position = Window.Pos + Vector2.new(5, 4)
+        
+        Window.ExpandIcon.Visible = true
+        Window.ExpandIcon.Position = Window.Pos + Vector2.new(Window.Size.X - 15, 3)
+        Window.ExpandIcon.Text = Window.Expanded and "-" or "+"
+
+        -- Element Logic
+        local currentY = Window.Pos.Y + Window.Size.Y
+        for _, elem in pairs(Window.Elements) do
+            if Window.Expanded then
+                elem:SetVisible(true)
+                elem:Update(Vector2.new(Window.Pos.X, currentY))
+                currentY = currentY + elem.Height
+            else
+                elem:SetVisible(false)
+            end
+        end
+    end
+
+    -- Add Toggle
+    function Window:AddToggle(text, default, callback)
+        local Toggle = {
+            Text = text,
+            State = default or false,
+            Callback = callback,
+            Height = 20,
+            Hover = false
+        }
+        
+        Toggle.Label = create("Text", {Visible = false, Size = 14, Font = 2, ZIndex = 4})
+        Toggle.Bg = create("Square", {Visible = false, Filled = true, Color = Color3.fromRGB(30, 30, 30), Transparency = 0.6, ZIndex = 3})
+
+        function Toggle:SetVisible(bool)
+            Toggle.Label.Visible = bool
+            Toggle.Bg.Visible = bool
+        end
+
+        function Toggle:Update(pos)
+            Toggle.Pos = pos
+            Toggle.Bg.Position = pos
+            Toggle.Bg.Size = Vector2.new(Window.Size.X, Toggle.Height)
+            
+            -- Wurst Style: Green text if active, gray if not
+            Toggle.Label.Position = pos + Vector2.new(5, 3)
+            Toggle.Label.Text = Toggle.Text
+            Toggle.Label.Color = Toggle.State and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(200, 200, 200)
+        end
+
+        function Toggle:Click()
+            Toggle.State = not Toggle.State
+            if Toggle.Callback then Toggle.Callback(Toggle.State) end
+        end
+
+        table.insert(Window.Elements, Toggle)
+        return Toggle
+    end
+
+    -- Add Slider
+    function Window:AddSlider(text, min, max, default, callback)
+        local Slider = {
+            Text = text, Min = min, Max = max, Value = default, Callback = callback,
+            Height = 30, Dragging = false
+        }
+
+        Slider.Bg = create("Square", {Visible = false, Filled = true, Color = Color3.fromRGB(30,30,30), Transparency = 0.6, ZIndex = 3})
+        Slider.Bar = create("Square", {Visible = false, Filled = true, Color = Color3.fromRGB(60,60,60), ZIndex = 4})
+        Slider.Fill = create("Square", {Visible = false, Filled = true, Color = Color3.fromRGB(50, 255, 50), ZIndex = 5})
+        Slider.Label = create("Text", {Visible = false, Size = 13, Font = 2, Color = Color3.new(1,1,1), ZIndex = 6})
+        Slider.ValueLabel = create("Text", {Visible = false, Size = 13, Font = 2, Color = Color3.new(1,1,1), ZIndex = 6})
+
+        function Slider:SetVisible(bool)
+            Slider.Bg.Visible = bool; Slider.Bar.Visible = bool; Slider.Fill.Visible = bool; Slider.Label.Visible = bool; Slider.ValueLabel.Visible = bool
+        end
+
+        function Slider:Update(pos)
+            Slider.Pos = pos
+            Slider.Bg.Position = pos
+            Slider.Bg.Size = Vector2.new(Window.Size.X, Slider.Height)
+
+            Slider.Label.Position = pos + Vector2.new(5, 2)
+            Slider.Label.Text = Slider.Text
+
+            local barWidth = Window.Size.X - 10
+            local percent = (Slider.Value - Slider.Min) / (Slider.Max - Slider.Min)
+            
+            Slider.Bar.Position = pos + Vector2.new(5, 18)
+            Slider.Bar.Size = Vector2.new(barWidth, 6)
+            
+            Slider.Fill.Position = pos + Vector2.new(5, 18)
+            Slider.Fill.Size = Vector2.new(barWidth * percent, 6)
+
+            Slider.ValueLabel.Position = pos + Vector2.new(Window.Size.X - 30, 2)
+            Slider.ValueLabel.Text = tostring(math.floor(Slider.Value * 10)/10)
+
+            if Slider.Dragging then
+                local mouse = UserInputService:GetMouseLocation()
+                local relX = math.clamp(mouse.X - Slider.Bar.Position.X, 0, barWidth)
+                local newPercent = relX / barWidth
+                Slider.Value = Slider.Min + (newPercent * (Slider.Max - Slider.Min))
+                if Slider.Callback then Slider.Callback(Slider.Value) end
+            end
+        end
+
+        table.insert(Window.Elements, Slider)
+    end
+
+    table.insert(Library.Windows, Window)
+    return Window
+end
+
+-- Global Input Handling
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        Library.Hidden = not Library.Hidden
+        return
+    end
+
+    if Library.Hidden then return end
+
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mouse = UserInputService:GetMouseLocation()
+        
+        -- Check Windows (Reverse order to click top windows first)
+        for i = #Library.Windows, 1, -1 do
+            local win = Library.Windows[i]
+            
+            -- Check Header Drag / Expand
+            if isMouseOver(win.Pos, win.Size) then
+                if mouse.X > win.Pos.X + win.Size.X - 25 then
+                    win.Expanded = not win.Expanded
+                else
+                    win.Dragging = true
+                    win.DragOffset = win.Pos - mouse
+                end
+                return -- Stop checking other elements
+            end
+
+            -- Check Elements
+            if win.Expanded then
+                local currentY = win.Pos.Y + win.Size.Y
+                for _, elem in pairs(win.Elements) do
+                    local elemSize = Vector2.new(win.Size.X, elem.Height)
+                    local elemPos = Vector2.new(win.Pos.X, currentY)
+                    
+                    if isMouseOver(elemPos, elemSize) then
+                        if elem.Click then elem:Click() end -- Toggle
+                        if elem.Min then elem.Dragging = true end -- Slider
+                        return
+                    end
+                    currentY = currentY + elem.Height
+                end
+            end
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        for _, win in pairs(Library.Windows) do
+            win.Dragging = false
+            for _, elem in pairs(win.Elements) do
+                if elem.Dragging ~= nil then elem.Dragging = false end
+            end
+        end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    local mouse = UserInputService:GetMouseLocation()
+    for _, win in pairs(Library.Windows) do
+        if win.Dragging then
+            win.Pos = mouse + win.DragOffset
+        end
+        win:Update()
+    end
+end)
+
+return Library
